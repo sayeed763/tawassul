@@ -20,6 +20,11 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+st.set_page_config(
+    page_title="Tawassul — Quran Read & Analytics",
+    page_icon=str(Path(__file__).resolve().parent / "logo_icon.png"),
+    layout="wide",
+)
 
 APP_NAME_EN = "Tawassul"
 APP_NAME_AR = "تَوَسُّل"
