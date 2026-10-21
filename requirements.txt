@@ -1,2 +1,2 @@
-streamlit>=1.42
+streamlit==X.Y.Z
 pandas
