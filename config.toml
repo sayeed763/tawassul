@@ -1,11 +1,2 @@
 [server]
 enableStaticServing = true
-
-[client]
-toolbarMode = "minimal"
-
-[theme]
-primaryColor = "#1976d2"
-
-[browser]
-gatherUsageStats = false
