@@ -24,22 +24,36 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-# Page configuration
+# 1. Page Configuration
 st.set_page_config(
     page_title="Tawassul",
     page_icon="logo_icon.png",
     layout="centered"
 )
-# Inject custom manifest and meta tags for your custom app icon & name
-st.markdown(
-    """
-    <link rel="icon" type="image/png" href="app/static/logo_icon.png">
-    <link rel="shortcut icon" type="image/png" href="app/static/logo_icon.png">
-    <link rel="apple-touch-icon" href="app/static/logo_icon.png">
-    """,
-    unsafe_allow_html=True
-)
-# Custom App Header & Logo Display
+
+# 2. Encode icon to Base64 for instant browser recognition
+def get_base64_image(image_path):
+    path = Path(image_path)
+    if path.is_file():
+        with open(path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    return ""
+
+logo_b64 = get_base64_image("logo_icon.png")
+
+# 3. Inject explicit head tags for Mobile PWA & Desktop Shortcuts
+if logo_b64:
+    st.markdown(
+        f"""
+        <link rel="icon" type="image/png" href="data:image/png;base64,{logo_b64}">
+        <link rel="apple-touch-icon" href="data:image/png;base64,{logo_b64}">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-title" content="Tawassul">
+        """,
+        unsafe_allow_html=True
+    )
+
+# 4. App Header Layout
 col1, col2 = st.columns([1, 4])
 with col1:
     st.image("logo_icon.png", width=80)
