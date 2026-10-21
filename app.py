@@ -23,6 +23,13 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+# MUST be the first Streamlit command in your script!
+st.set_page_config(
+    page_title="Tawassul - Read, Reflect, Analyse",  # Changes browser tab title
+    page_icon="logo_icon.png",                       # Uses your logo icon file
+    layout="wide"
+)
+
 APP_NAME_EN = "Tawassul"
 APP_NAME_AR = "تَوَسُّل"
 LOGO_PATH = Path(__file__).resolve().parent / "logo.png"
