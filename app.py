@@ -24,6 +24,25 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+# Page configuration
+st.set_page_config(
+    page_title="Tawassul",
+    page_icon="logo_icon.png",
+    layout="centered"
+)
+
+# Custom App Header & Logo Display
+col1, col2 = st.columns([1, 4])
+with col1:
+    st.image("logo_icon.png", width=80)
+with col2:
+    st.markdown("### Tawassul")
+    st.caption("Read · Reflect · Analyse the Quran")
+
+st.divider()
+
+# Rest of your app code goes here...
+
 APP_NAME_EN = "Tawassul"
 APP_NAME_AR = "تَوَسُّل"
 LOGO_PATH = Path(__file__).resolve().parent / "logo.png"
