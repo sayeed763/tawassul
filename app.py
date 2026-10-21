@@ -33,15 +33,12 @@ st.set_page_config(
 # Inject custom manifest and meta tags for your custom app icon & name
 st.markdown(
     """
-    <link rel="manifest" href="app/static/manifest.json">
-    <meta name="theme-color" content="#1976d2">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Tawassul">
+    <link rel="icon" type="image/png" href="app/static/logo_icon.png">
+    <link rel="shortcut icon" type="image/png" href="app/static/logo_icon.png">
+    <link rel="apple-touch-icon" href="app/static/logo_icon.png">
     """,
     unsafe_allow_html=True
 )
-
 # Custom App Header & Logo Display
 col1, col2 = st.columns([1, 4])
 with col1:
