@@ -29,7 +29,7 @@ st.set_page_config(
     page_icon="logo_icon.png",                       # Uses your logo icon file
     layout="wide"
 )
-
+st.sidebar.image("logo.png", use_column_width=True)
 APP_NAME_EN = "Tawassul"
 APP_NAME_AR = "تَوَسُّل"
 LOGO_PATH = Path(__file__).resolve().parent / "logo.png"
