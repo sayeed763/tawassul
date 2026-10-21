@@ -628,13 +628,14 @@ CSS = """
 .hero .title-en{font-size:clamp(1.2rem,3.5vw,1.8rem);letter-spacing:.45em;text-transform:uppercase;
       font-weight:700;color:#1976d2;margin-top:-.2rem;}
 .hero .tag{opacity:.75;margin-top:.5rem;font-size:1rem;}
-.block-container{padding-bottom:10rem!important;}
-.st-key-navbar,.st-key-playerbar{position:fixed;left:0;right:0;z-index:998;background:#fff;
-    border-top:1px solid rgba(128,128,128,.35);box-shadow:0 -2px 10px rgba(0,0,0,.12);}
-/* right padding leaves room for the "Hosted with Streamlit" badge that some hosts overlay bottom-right */
-.st-key-navbar{bottom:0;padding:.4rem 5rem calc(.4rem + env(safe-area-inset-bottom,0px)) .6rem;}
-.st-key-playerbar{bottom:3.7rem;padding:.3rem 5rem .3rem .8rem;z-index:997;}
-.st-key-navbar button{padding:.35rem .15rem!important;font-size:.82rem!important;white-space:nowrap;}
+.block-container{padding-bottom:1rem!important;}
+/* Bottom dock (player + Back/Next/Home/Analyse): sticks to the bottom of the visible page area,
+   so it never slides under the sidebar. Right padding leaves room for a host's "Hosted with Streamlit" badge. */
+div:has(> .st-key-dock){position:sticky;bottom:0;z-index:998;}
+.st-key-dock{background:#fff;border-top:1px solid rgba(128,128,128,.35);box-shadow:0 -2px 10px rgba(0,0,0,.12);
+    margin-top:1rem;padding:.4rem 5rem calc(.4rem + env(safe-area-inset-bottom,0px)) .6rem;}
+@media (prefers-color-scheme: dark){.st-key-dock{background:#0e1117;}}
+.st-key-dock button{padding:.35rem .15rem!important;font-size:.82rem!important;white-space:nowrap;}
 [class*="st-key-card_"]{scroll-margin-top:4.2rem;}
 /* always-visible sidebar toggle (« / ») even while scrolling */
 [data-testid="stSidebarCollapsedControl"],[data-testid="stExpandSidebarButton"],[data-testid="collapsedControl"]{
@@ -642,13 +643,15 @@ CSS = """
     visibility:visible!important;opacity:1!important;background:#1976d2;border-radius:10px;padding:.1rem;}
 [data-testid="stSidebarCollapsedControl"] *,[data-testid="stExpandSidebarButton"] *,[data-testid="collapsedControl"] *{
     color:#fff!important;fill:#fff!important;}
-[data-testid="stSidebarCollapseButton"]{opacity:1!important;visibility:visible!important;}
-@media (prefers-color-scheme: dark){.st-key-navbar,.st-key-playerbar{background:#0e1117;}}
+[data-testid="stSidebarCollapseButton"],[data-testid="stSidebarCollapseButton"] button{
+    opacity:1!important;visibility:visible!important;}
+[data-testid="stSidebarCollapseButton"] button{background:#1976d2!important;color:#fff!important;border-radius:10px;}
+[data-testid="stSidebarCollapseButton"] button *{color:#fff!important;fill:#fff!important;}
 /* keep button rows horizontal on phones (Streamlit stacks columns by default) */
-.st-key-navbar [data-testid="stHorizontalBlock"],[class*="st-key-keepcols"] [data-testid="stHorizontalBlock"]{
+.st-key-dock [data-testid="stHorizontalBlock"],[class*="st-key-keepcols"] [data-testid="stHorizontalBlock"]{
     flex-direction:row!important;flex-wrap:nowrap!important;gap:.4rem!important;}
-.st-key-navbar [data-testid="stColumn"],[class*="st-key-keepcols"] [data-testid="stColumn"],
-.st-key-navbar [data-testid="column"],[class*="st-key-keepcols"] [data-testid="column"]{
+.st-key-dock [data-testid="stColumn"],[class*="st-key-keepcols"] [data-testid="stColumn"],
+.st-key-dock [data-testid="column"],[class*="st-key-keepcols"] [data-testid="column"]{
     min-width:0!important;flex:1 1 0!important;width:auto!important;}
 .st-key-wordpills button{font-family:%FONT%;font-size:1.5rem!important;line-height:2!important;}
 [data-testid="stBaseButton-primary"],button[kind="primary"]{background:#1976d2!important;border:none!important;color:#fff!important;font-weight:700;}
@@ -708,15 +711,14 @@ def play_ayah(sid, ayah):
     play_url(AUDIO_AYAH.format(folder=RECITERS[name], sid=sid, ayah=ayah), f"🎧 {name} · {sid}:{ayah}")
 
 
-def player_bar():
+def player_block():
     p = st.session_state.get("player")
     if not p:
         return
-    with st.container(key="playerbar"):
-        c1, c2 = st.columns([6, 1])
-        c1.caption(p["label"])
-        c2.button("✖", key="close_player", on_click=lambda: st.session_state.pop("player", None))
-        st.audio(p["url"], autoplay=True)
+    c1, c2 = st.columns([6, 1])
+    c1.caption(p["label"])
+    c2.button("✖", key="close_player", on_click=lambda: st.session_state.pop("player", None))
+    st.audio(p["url"], autoplay=True)
 
 
 def show_results(df, empty_msg="No matching ayahs found in the loaded data."):
@@ -777,8 +779,8 @@ def surah_meta(sid):
     return ar, en, n, ("Makki" if k == "K" else "Madani")
 
 
-def navbar():
-    s, idx = cur(), st.session_state.idx
+def breadcrumb():
+    s = cur()
     crumbs = ["Surahs"]
     if s["surah"]:
         crumbs.append(f"{s['surah']}. {surah_meta(s['surah'])[1]}")
@@ -790,7 +792,13 @@ def navbar():
     if s["page"] == "learn":
         crumbs.append("Learn")
     st.caption(" › ".join(crumbs))
-    with st.container(key="navbar"):   # fixed at the bottom of the screen on every page / device
+
+
+def dock():
+    """Always-visible bottom bar: player + Back / Next / Home (+ Analyse on Read + Analyse)."""
+    s, idx = cur(), st.session_state.idx
+    with st.container(key="dock"):
+        player_block()
         show_analyse = s["page"] == "read" and s["mode"] == "analyse"
         cols = st.columns(4 if show_analyse else 3)
         cols[0].button("⬅️ Back", disabled=idx == 0, on_click=back, use_container_width=True)
@@ -1117,11 +1125,11 @@ def main():
     st.set_page_config(page_title=f"{APP_NAME_EN} — Quran Read & Analytics", page_icon=str(ICON_PATH) if ICON_PATH.exists() else "📖", layout="wide")
     init_state()
     styles()
-    navbar()
-    player_bar()
+    breadcrumb()
     pwa_head()
     {"surahs": page_surahs, "mode": page_mode, "read": page_read,
      "analytics": page_analytics, "drill": page_drill, "learn": page_learn}[cur()["page"]]()
+    dock()   # rendered last so it sits at the end of the page and sticks to the bottom of the screen
 
 
 if __name__ == "__main__":
