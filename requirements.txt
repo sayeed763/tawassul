@@ -1,2 +1,2 @@
-streamlit==X.Y.Z
+streamlit==1.66.1
 pandas
