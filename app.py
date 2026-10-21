@@ -23,13 +23,22 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-# MUST be the first Streamlit command in your script!
+# Set your custom browser tab title and app icon
 st.set_page_config(
-    page_title="Tawassul - Read, Reflect, Analyse",  # Changes browser tab title
-    page_icon="logo_icon.png",                       # Uses your logo icon file
-    layout="wide"
+    page_title="Tawassul — Quran Read & Analytics",
+    page_icon="logo_icon.png",  # Uses your sidebar icon file
+    layout="wide",
 )
-st.sidebar.image("logo.png", use_column_width=True)
+
+# Hide Streamlit header, footer, and menu using CSS
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 APP_NAME_EN = "Tawassul"
 APP_NAME_AR = "تَوَسُّل"
 LOGO_PATH = Path(__file__).resolve().parent / "logo.png"
