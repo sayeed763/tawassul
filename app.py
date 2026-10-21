@@ -1,11 +1,13 @@
 """
 Quranic Read & Analytics — single-file Streamlit app
 Tawassul — Quran Read & Analytics (single-file Streamlit app)
-Run:  pip install "streamlit>=1.39" pandas  &&  streamlit run app.py
+Run:  pip install "streamlit>=1.42" pandas  &&  streamlit run app.py
 
 Keep these next to app.py:
 * quran_roman_urdu.csv  – fixed Roman Urdu source (loaded automatically, never uploaded by users)
 * fonts/ (optional)     – drop an Indo-Pak Quran .ttf/.otf here to use it as the Arabic font
+* quran_word_meanings.csv (optional) – columns: word, roman_urdu  (extends the word-meaning dictionary)
+Audio (ayah + word-by-word) streams from public CDNs (everyayah.com, audio.qurancdn.com): internet needed.
 Arabic text is downloaded once automatically on first start and cached in quran_arabic.json.
 """
 import base64
@@ -20,11 +22,6 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-st.set_page_config(
-    page_title="Tawassul — Quran Read & Analytics",
-    page_icon=str(Path(__file__).resolve().parent / "logo_icon.png"),
-    layout="wide",
-)
 
 APP_NAME_EN = "Tawassul"
 APP_NAME_AR = "تَوَسُّل"
@@ -291,6 +288,64 @@ def norm(text: str) -> str:
 
 STOPWORDS = {norm(w) for w in STOPWORDS}
 
+RECITERS = {  # label: everyayah.com folder
+    "Mishary Alafasy": "Alafasy_128kbps",
+    "Husary — Muallim (slow, teaching style)": "Husary_Muallim_128kbps",
+    "Husary — Murattal": "Husary_128kbps",
+    "Abdul Basit — Murattal": "Abdul_Basit_Murattal_192kbps",
+    "Minshawi — Murattal": "Minshawy_Murattal_128kbps",
+    "As-Sudais": "Abdurrahmaan_As-Sudais_192kbps",
+}
+AUDIO_AYAH = "https://everyayah.com/data/{folder}/{sid:03d}{ayah:03d}.mp3"
+AUDIO_WBW = "https://audio.qurancdn.com/"
+
+# Roman Urdu meanings of words found in the bundled Surahs (key = Arabic skeleton, see norm()).
+_WORD_RU_RAW = """
+بسم=naam se | الله=Allah | الرحمن=bohat meherban | الرحيم=nihayat rahm karne wala | الحمد=tamam taarif
+لله=Allah hi ke liye | رب=rab, palne wala | العالمين=tamam jahanon (ka) | مالك=malik | يوم=din | الدين=jaza / insaf (ka)
+اياك=sirf tujhi ko | واياك=aur sirf tujhi se | نعبد=hum ibadat karte hain | نستعين=hum madad mangte hain
+اهدنا=hamein hidayat de / raah dikha | الصراط=raasta | المستقيم=seedha | صراط=raasta | انعمت=tu ne inaam kiya
+عليهم=un par | غير=siwaye / na ke | المغضوب=jin par ghazab hua | ولا=aur na | الضالين=gumrah log
+والعصر=aur zamane ki qasam | العصر=zamana | الانسان=insan | لفي=yaqeenan ... mein | خسر=khasara / nuqsan
+الا=magar / siwaye | امنوا=iman laye | وعملوا=aur amal kiye | الصالحات=nek amal | وتواصوا=aur ek doosre ko talqeen ki
+بالحق=haq ki | بالصبر=sabr ki | الصبر=sabr | الحق=haq / sachchai
+انا=beshak hum | اعطيناك=hum ne aap ko ata kiya | الكوثر=Kawthar (khair-e-kaseer) | فصل=pas namaz parho
+لربك=apne rab ke liye | وانحر=aur qurbani karo | انحر=qurbani karo | صل=namaz parho | شانئك=aap se bughz rakhne wala
+الابتر=be-nam-o-nishan (jis ki jad kat gayi)
+قل=kaho | الكافرون=inkar karne wale | اعبد=main ibadat karta hoon | تعبدون=tum ibadat karte ho
+انتم=tum | عابدون=ibadat karne wale | عابد=ibadat karne wala | عبدتم=tum ne ibadat ki | لكم=tumhare liye
+دينكم=tumhara deen | ولي=aur mere liye | دين=deen / tareeqa
+اذا=jab | جاء=aa jaye | نصر=madad | والفتح=aur fath | الفتح=fath | ورايت=aur aap dekh lein | الناس=log
+يدخلون=dakhil hote hain | افواجا=fauj dar fauj | فسبح=pas tasbeeh karo | بحمد=hamd ke saath | ربك=aap ka rab
+واستغفره=aur us se maghfirat maango | استغفره=us se maghfirat maango | انه=beshak woh | توابا=bahut tauba qubool karne wala
+احد=ek / yakta | الصمد=be-niyaz (sab us ke mohtaj) | يلد=us ne aulad di | يولد=woh paida kiya gaya | يكن=hai
+له=us ke liye | كفوا=barabar / hamsar
+اعوذ=main panah mangta hoon | برب=rab ki (panah) | الفلق=subah ka ujala / phatne wali cheez | شر=sharr / buraai
+خلق=us ne paida kiya | غاسق=andheri raat | وقب=chha jaye | النفاثات=phoonkne wali (aurtein) | العقد=girahon (mein)
+حاسد=hasad karne wala | حسد=hasad kare
+ملك=badshah | اله=mabood | الوسواس=waswasa dalne wala | الخناس=peechhe hat jane wala | يوسوس=waswasa dalta hai
+صدور=seene | الجنه=jinnaat | والناس=aur insaan
+الذي=jo (woh) | الذين=jo log | ان=beshak / ke | ايها=aye | في=mein | كان=tha / hai | لا=nahin / na | لم=nahin (kiya) | ما=jo / jis | من=se / mein se | هو=woh | ولم=aur nahin | ومن=aur se | يا=aye
+"""
+WORD_RU = {}
+for _chunk in _WORD_RU_RAW.replace("\n", "|").split("|"):
+    if "=" in _chunk:
+        _k, _v = _chunk.split("=", 1)
+        WORD_RU[norm(_k)] = _v.strip()
+
+
+def _load_extra_word_meanings():
+    f = BASE_DIR / "quran_word_meanings.csv"
+    if f.exists():
+        try:
+            for r in pd.read_csv(f, encoding="utf-8-sig").fillna("").itertuples():
+                WORD_RU[norm(str(r.word))] = str(r.roman_urdu).strip()
+        except Exception:
+            pass
+
+
+_load_extra_word_meanings()
+
 
 def strip_bismillah(text: str) -> str:
     words = text.split()
@@ -455,6 +510,81 @@ def dua_search(sid, ayahs=None):
 
 
 # ───────────────────────── 4. STYLING / RENDERING ─────────────────────────
+_WBW, _MEAN = {}, {}
+
+
+def _api_json(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "Tawassul/1.0"})
+    with urllib.request.urlopen(req, timeout=8) as r:
+        return json.load(r)
+
+
+def wbw_info(sid, ayah):
+    """Word-by-word data (text, audio, English/Urdu meaning) from Quran.com; None if offline."""
+    key = (sid, ayah)
+    if key in _WBW:
+        return _WBW[key]
+    try:
+        base = (f"https://api.quran.com/api/v4/verses/by_key/{sid}:{ayah}"
+                "?words=true&word_fields=text_uthmani&language=")
+        en, ur = _api_json(base + "en")["verse"]["words"], _api_json(base + "ur")["verse"]["words"]
+        out = []
+        for w_en, w_ur in zip(en, ur):
+            if w_en.get("char_type_name") != "word":
+                continue
+            pos = len(out) + 1
+            audio = w_en.get("audio_url") or f"wbw/{sid:03d}_{ayah:03d}_{pos:03d}.mp3"
+            out.append(dict(text=w_en.get("text_uthmani") or w_en.get("text", ""), audio=AUDIO_WBW + audio,
+                            en=(w_en.get("translation") or {}).get("text", ""),
+                            ur=(w_ur.get("translation") or {}).get("text", "")))
+        if out:
+            _WBW[key] = out
+            return out
+    except Exception:
+        pass
+    return None
+
+
+def ayah_words(sid, ayah, text):
+    info = wbw_info(sid, ayah)
+    if info:
+        return info
+    toks = [t for t in text.split() if norm(t)]
+    return [dict(text=t, audio=f"{AUDIO_WBW}wbw/{sid:03d}_{ayah:03d}_{i + 1:03d}.mp3", en="", ur="")
+            for i, t in enumerate(toks)]
+
+
+def word_meaning(term, sid):
+    """(roman_urdu, urdu_script, english). Roman Urdu comes from the dictionary; others need internet."""
+    t = norm(term)
+    ru = WORD_RU.get(t, "")
+    if ru:
+        return ru, "", ""
+    if (t, sid) in _MEAN:
+        return _MEAN[(t, sid)]
+    ur = en = ""
+    for r in word_search(t, sid, True).head(3).itertuples():
+        words = wbw_info(r.surah_id, r.ayah_number) or []
+        hit = next((w for w in words if norm(w["text"]) == t), None) or \
+            next((w for w in words if t in norm(w["text"])), None)
+        if hit:
+            ur, en = hit["ur"], hit["en"]
+            break
+    _MEAN[(t, sid)] = ("", ur, en)
+    return _MEAN[(t, sid)]
+
+
+def persist(key, default):
+    """Keep a widget's value alive even when the widget is not rendered on some pages."""
+    shadow = st.session_state.setdefault("_shadow", {})
+    if key not in st.session_state:
+        st.session_state[key] = shadow.get(key, default)
+
+
+def keep(key):
+    st.session_state.setdefault("_shadow", {})[key] = st.session_state[key]
+
+
 AR_STYLES = {  # label: (font stack, weight, line-height)
     "Indo-Pak style — Scheherazade (bold, curved)": ("'Scheherazade New','Noto Naskh Arabic',serif", 700, 2.1),
     "Nastaliq — Noto Nastaliq Urdu": ("'Noto Nastaliq Urdu','Scheherazade New',serif", 500, 2.8),
@@ -478,10 +608,9 @@ CSS = """
 %CUSTOM%
 .ar{font-family:%FONT%;font-weight:%WEIGHT%;direction:rtl;text-align:right;font-size:%ARSIZE%px;line-height:%LH%;
     text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;word-spacing:.12em;}
-.ur{font-size:%URSIZE%px;line-height:1.7;direction:ltr;text-align:left;}
+.ur{font-size:%URSIZE%px;line-height:1.7;direction:ltr;text-align:left;border-top:1px solid rgba(128,128,128,.25);margin-top:.5rem;padding-top:.55rem;}
 .qwrap{border:1px solid rgba(128,128,128,.3);border-radius:14px;overflow:hidden;}
-.qrow{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;padding:.9rem 1.1rem;
-      border-bottom:1px solid rgba(128,128,128,.2);align-items:center;}
+.qrow{display:block;padding:.8rem 1rem;border-bottom:1px solid rgba(128,128,128,.2);}
 .qrow:last-child{border-bottom:none;}
 .bsm{background:rgba(25,118,210,.08);}
 .ref{display:inline-block;font-size:.75rem;font-weight:600;color:#1976d2;margin-bottom:.2rem;}
@@ -498,9 +627,19 @@ CSS = """
 .hero .title-en{font-size:clamp(1.2rem,3.5vw,1.8rem);letter-spacing:.45em;text-transform:uppercase;
       font-weight:700;color:#1976d2;margin-top:-.2rem;}
 .hero .tag{opacity:.75;margin-top:.5rem;font-size:1rem;}
-@media(max-width:700px){.qrow{grid-template-columns:1fr;}}
-.st-key-navbar{position:sticky;top:2.9rem;z-index:999;padding:.4rem 0;
-    background:var(--background-color,rgba(255,255,255,.92));border-bottom:1px solid rgba(128,128,128,.25);}
+.block-container{padding-bottom:10rem!important;}
+.st-key-navbar,.st-key-playerbar{position:fixed;left:0;right:0;z-index:998;background:#fff;
+    border-top:1px solid rgba(128,128,128,.35);box-shadow:0 -2px 10px rgba(0,0,0,.12);}
+.st-key-navbar{bottom:0;padding:.4rem .6rem calc(.4rem + env(safe-area-inset-bottom,0px));}
+.st-key-playerbar{bottom:3.7rem;padding:.3rem .8rem;z-index:997;}
+@media (prefers-color-scheme: dark){.st-key-navbar,.st-key-playerbar{background:#0e1117;}}
+/* keep button rows horizontal on phones (Streamlit stacks columns by default) */
+.st-key-navbar [data-testid="stHorizontalBlock"],[class*="st-key-keepcols"] [data-testid="stHorizontalBlock"]{
+    flex-direction:row!important;flex-wrap:nowrap!important;gap:.4rem!important;}
+.st-key-navbar [data-testid="stColumn"],[class*="st-key-keepcols"] [data-testid="stColumn"],
+.st-key-navbar [data-testid="column"],[class*="st-key-keepcols"] [data-testid="column"]{
+    min-width:0!important;flex:1 1 0!important;width:auto!important;}
+.st-key-wordpills button{font-family:%FONT%;font-size:1.5rem!important;line-height:2!important;}
 [data-testid="stBaseButton-primary"],button[kind="primary"]{background:#1976d2!important;border:none!important;color:#fff!important;font-weight:700;}
 [data-testid="stBaseButton-primary"]:hover,button[kind="primary"]:hover{background:#0d47a1!important;}
 .st-key-analyse_btn button{padding:.8rem 1rem;font-size:1.15rem;}
@@ -515,27 +654,53 @@ def styles():
     if custom:
         options = {"Custom font (fonts folder)": ("'TawassulCustom','Scheherazade New',serif", 400, 2.2), **options}
     st.sidebar.header("⚙️ Display settings")
+    for k, d in (("ar_style", list(options)[0]), ("ar_size", 38), ("ur_size", 18), ("reciter", list(RECITERS)[0])):
+        persist(k, d)
     label = st.sidebar.selectbox("Arabic style", list(options), key="ar_style")
-    ar_size = st.sidebar.slider("Arabic font size", 20, 80, 38, key="ar_size")
-    ur_size = st.sidebar.slider("Roman Urdu font size", 12, 36, 18, key="ur_size")
+    ar_size = st.sidebar.slider("Arabic font size", 20, 80, key="ar_size")
+    ur_size = st.sidebar.slider("Roman Urdu font size", 12, 36, key="ur_size")
+    st.sidebar.selectbox("🎧 Reciter", list(RECITERS), key="reciter")
+    for k in ("ar_style", "ar_size", "ur_size", "reciter"):
+        keep(k)
     font, weight, lh = options[label]
     st.markdown(CSS.replace("%CUSTOM%", custom).replace("%FONT%", font).replace("%WEIGHT%", str(weight))
                 .replace("%LH%", str(lh)).replace("%ARSIZE%", str(ar_size)).replace("%URSIZE%", str(ur_size)),
                 unsafe_allow_html=True)
 
 
-def rows_html(df, show_ref=False, bismillah=False):
+def card_inner(r, ref):
+    ur = html.escape(r.roman_urdu_translation) if r.roman_urdu_translation else "<i>Roman Urdu not loaded</i>"
+    return (f'<div class="qrow"><span class="ref">{ref}</span>'
+            f'<div class="ar">{html.escape(r.arabic_naskh) or "—"}</div><div class="ur">{ur}</div></div>')
+
+
+def rows_html(df, show_ref=False):
     out = ['<div class="qwrap">']
-    if bismillah:
-        out.append(f'<div class="qrow bsm"><div class="ur"><span class="ref">{BISMILLAH_EN}</span><br>'
-                   f'{html.escape(BISMILLAH_UR)}</div><div class="ar">{BISMILLAH_AR}</div></div>')
     for r in df.itertuples():
         ref = f"{html.escape(r.name_en)} {r.surah_id}:{r.ayah_number}" if show_ref else f"Ayah {r.ayah_number}"
-        ur = html.escape(r.roman_urdu_translation) if r.roman_urdu_translation else "<i>Roman Urdu not loaded</i>"
-        out.append(f'<div class="qrow"><div class="ur"><span class="ref">{ref}</span><br>{ur}</div>'
-                   f'<div class="ar">{html.escape(r.arabic_naskh) or "—"}</div></div>')
+        out.append(card_inner(r, ref))
     out.append("</div>")
     st.markdown("".join(out), unsafe_allow_html=True)
+
+
+def play_url(url, label):
+    st.session_state.player = dict(url=url, label=label)
+
+
+def play_ayah(sid, ayah):
+    name = st.session_state.get("reciter", list(RECITERS)[0])
+    play_url(AUDIO_AYAH.format(folder=RECITERS[name], sid=sid, ayah=ayah), f"🎧 {name} · {sid}:{ayah}")
+
+
+def player_bar():
+    p = st.session_state.get("player")
+    if not p:
+        return
+    with st.container(key="playerbar"):
+        c1, c2 = st.columns([6, 1])
+        c1.caption(p["label"])
+        c2.button("✖", key="close_player", on_click=lambda: st.session_state.pop("player", None))
+        st.audio(p["url"], autoplay=True)
 
 
 def show_results(df, empty_msg="No matching ayahs found in the loaded data."):
@@ -549,7 +714,7 @@ def show_results(df, empty_msg="No matching ayahs found in the loaded data."):
 # ───────────────────────── 5. NAVIGATION STATE ─────────────────────────
 DEFAULTS = dict(page="surahs", surah=None, mode=None, scope_type="Analyse Total Surah", scope=None,
                 module="A · Revelation Context & Central Theme", b_section="Key Words: Recurring Words",
-                c_option="Summary", drill_term=None, drill_label=None, drill_kind="recurring", drill_partial=False)
+                c_option="Summary", drill_term=None, drill_label=None, drill_kind="recurring", drill_partial=False, learn_ayah=1)
 MODULES = ["A · Revelation Context & Central Theme", "B · Structural & Linguistic Breakdown",
            "C · Summary & Dua / Zikr"]
 SCOPE_OPTS = ["Analyse Total Surah", "Analyse Particular Ayat / Ayats"]
@@ -598,21 +763,23 @@ def surah_meta(sid):
 
 def navbar():
     s, idx = cur(), st.session_state.idx
-    with st.container(key="navbar"):
-        c1, c2, c3, c4 = st.columns([1.2, 1.2, 1, 6])
+    crumbs = ["Surahs"]
+    if s["surah"]:
+        crumbs.append(f"{s['surah']}. {surah_meta(s['surah'])[1]}")
+        crumbs.append({"read": "Read", "analyse": "Read + Analyse"}.get(s["mode"], "Mode"))
+    if s["page"] in ("analytics", "drill"):
+        crumbs.append("Analytics")
+    if s["page"] == "drill":
+        crumbs.append(s["drill_label"] or "")
+    if s["page"] == "learn":
+        crumbs.append("Learn")
+    st.caption(" › ".join(crumbs))
+    with st.container(key="navbar"):   # fixed at the bottom of the screen on every page / device
+        c1, c2, c3 = st.columns(3)
         c1.button("⬅️ Back", disabled=idx == 0, on_click=back, use_container_width=True)
         c2.button("➡️ Next", disabled=idx >= len(st.session_state.nav) - 1, on_click=forward,
                   use_container_width=True)
-        c3.button("🏠", on_click=lambda: go(**DEFAULTS), help="All Surahs", use_container_width=True)
-        crumbs = ["Surahs"]
-        if s["surah"]:
-            crumbs.append(f"{s['surah']}. {surah_meta(s['surah'])[1]}")
-            crumbs.append({"read": "Read", "analyse": "Read + Analyse"}.get(s["mode"], "Mode"))
-        if s["page"] in ("analytics", "drill"):
-            crumbs.append("Analytics")
-        if s["page"] == "drill":
-            crumbs.append(s["drill_label"] or "")
-        c4.markdown(" › ".join(crumbs))
+        c3.button("🏠 Home", on_click=lambda: go(**DEFAULTS), use_container_width=True)
 
 
 # ───────────────────────── 6. PAGES ─────────────────────────
@@ -633,12 +800,10 @@ def page_surahs():
     if flt.strip():
         f = flt.strip().lower()
         items = [x for x in items if f in x[2].lower() or f in x[1] or f == str(x[0])]
-    cols = st.columns(4)
-    for j, (sid, ar, en, n, k) in enumerate(items):
-        with cols[j % 4]:
-            st.button(f"{sid}. {en} — {ar}\n\n{n} ayahs · {'Makki' if k == 'K' else 'Madani'}",
-                      key=f"surah_{sid}", use_container_width=True,
-                      on_click=lambda sid=sid: go(**{**DEFAULTS, "page": "mode", "surah": sid}))
+    for sid, ar, en, n, k in items:   # one per line: 1, 2, 3 … on phone and laptop alike
+        st.button(f"{sid}. {en} — {ar}   ·   {n} ayahs · {'Makki' if k == 'K' else 'Madani'}",
+                  key=f"surah_{sid}", use_container_width=True,
+                  on_click=lambda sid=sid: go(**{**DEFAULTS, "page": "mode", "surah": sid}))
 
 
 def surah_header(sid):
@@ -674,27 +839,47 @@ def page_read():
     df = get_ayahs(sid)
     loaded_warning(sid, df)
     # Bismillah rule: shown for every Surah except At-Tawbah (9); in Al-Fatihah it is already Ayah 1.
-    rows_html(df, bismillah=sid not in (1, 9))
+    if sid not in (1, 9):
+        with st.container(border=True, key=f"bsm_{sid}"):
+            st.markdown(f'<div class="qrow"><span class="ref">{BISMILLAH_EN}</span><div class="ar">{BISMILLAH_AR}</div>'
+                        f'<div class="ur">{html.escape(BISMILLAH_UR)}</div></div>', unsafe_allow_html=True)
+            st.button("▶ Listen", key=f"pl_bsm_{sid}", on_click=play_ayah, args=(1, 1))
+    for r in df.itertuples():
+        n = r.ayah_number
+        with st.container(border=True, key=f"card_{sid}_{n}"):
+            st.markdown(card_inner(r, f"Ayah {n}"), unsafe_allow_html=True)
+            with st.container(key=f"keepcols_act_{sid}_{n}"):
+                a, b = st.columns(2)
+                a.button("▶ Listen", key=f"pl_{sid}_{n}", on_click=play_ayah, args=(sid, n), use_container_width=True)
+                b.button("🎓 Learn", key=f"ln_{sid}_{n}", use_container_width=True,
+                         on_click=lambda n=n: go(page="learn", learn_ayah=n))
 
 
 def scope_picker(sid):
     n = surah_meta(sid)[2]
-    s = cur()
     choice = state_select("What do you want to analyse?", SCOPE_OPTS, "scope_type")
     if choice == SCOPE_OPTS[0]:
         return None
-    method = st.radio("Select ayahs by", ["Range", "Multi-select"], horizontal=True, key=f"method_{st.session_state.idx}")
-    prev = list(s["scope"] or [1])
+    opts = list(range(1, n + 1))
+    persist(f"method_{sid}", "Range")
+    method = st.radio("Select ayahs by", ["Range", "Pick ayahs"], horizontal=True, key=f"method_{sid}")
     if method == "Range":
+        persist(f"from_{sid}", 1)
+        persist(f"to_{sid}", min(n, 7))
         a, b = st.columns(2)
-        start = a.number_input("From ayah", 1, n, min(prev), key=f"from_{st.session_state.idx}")
-        end = b.number_input("To ayah", 1, n, max(prev), key=f"to_{st.session_state.idx}")
-        pick = list(range(int(min(start, end)), int(max(start, end)) + 1))
+        start = a.selectbox("From ayah (type a number)", opts, key=f"from_{sid}")
+        end = b.selectbox("To ayah (type a number)", opts, key=f"to_{sid}")
+        pick = list(range(min(start, end), max(start, end) + 1))
+        keep(f"from_{sid}"); keep(f"to_{sid}")
     else:
-        pick = st.multiselect("Ayahs", list(range(1, n + 1)), default=[p for p in prev if p <= n],
-                              key=f"multi_{st.session_state.idx}")
-    st.button("Apply selection", on_click=lambda: go(scope=tuple(sorted(pick))) if pick else None)
-    return list(s["scope"]) if s["scope"] else None
+        persist(f"multi_{sid}", [1])
+        pick = sorted(st.multiselect("Ayahs (type or tap to add / remove)", opts, key=f"multi_{sid}"))
+        keep(f"multi_{sid}")
+    keep(f"method_{sid}")
+    if not pick:
+        st.info("Select at least one ayah.")
+        return None
+    return pick
 
 
 def page_analytics():
@@ -702,7 +887,12 @@ def page_analytics():
     sid = s["surah"]
     surah_header(sid)
     scope = scope_picker(sid)
-    st.caption("Scope: whole Surah" if scope is None else f"Scope: ayahs {scope[0]}–{scope[-1]} ({len(scope)} selected)")
+    if scope is None:
+        st.caption("Scope: whole Surah")
+    elif scope == list(range(scope[0], scope[-1] + 1)):
+        st.caption(f"Scope: ayahs {scope[0]}–{scope[-1]} ({len(scope)} selected)")
+    else:
+        st.caption("Scope: ayahs " + ", ".join(map(str, scope)))
     st.divider()
     module = state_select("Module", MODULES, "module")
     st.divider()
@@ -740,22 +930,25 @@ def module_b(sid, scope):
         st.dataframe(words.rename(columns={"word": "Word", "key": "Searchable form", "count": "Count"}),
                      hide_index=True, use_container_width=True)
         st.markdown("**Tap a word to see where it appears:**")
-        cols = st.columns(4)
-        for i, r in enumerate(words.itertuples()):
-            cols[i % 4].button(f"{r.word}  ({r.count})", key=f"w_{sid}_{i}", use_container_width=True,
+        rows = list(words.itertuples())
+        for k in range(0, len(rows), 3):
+            with st.container(key=f"keepcols_w_{k}"):
+                for col, r in zip(st.columns(3), rows[k:k + 3]):
+                    col.button(f"{r.word}  ({r.count})", key=f"w_{sid}_{k}_{r.key}", use_container_width=True,
                                on_click=lambda r=r: go(page="drill", drill_term=r.key, drill_label=r.word,
                                                        drill_kind="recurring", drill_partial=False))
     elif sec == "Key Words: Pivotal Arabic Terms":
         terms = PIVOTAL.get(sid)
         if not terms:
             return st.info("No curated pivotal terms for this Surah yet — add them to `PIVOTAL`.")
-        cols = st.columns(3)
-        for i, (ar, meaning) in enumerate(terms):
-            cols[i % 3].button(f"{ar} — {meaning}", key=f"p_{sid}_{i}", use_container_width=True,
-                               on_click=lambda ar=ar: go(page="drill", drill_term=norm(ar), drill_label=ar,
-                                                         drill_kind="pivotal", drill_partial=True))
+        for ar, meaning in terms:
+            st.button(f"{ar} — {meaning}", key=f"p_{sid}_{norm(ar)}", use_container_width=True,
+                      on_click=lambda ar=ar: go(page="drill", drill_term=norm(ar), drill_label=ar,
+                                                drill_kind="pivotal", drill_partial=True))
     else:
+        persist("passage_type", list(CATEGORY_LABELS)[0])
         label = st.selectbox("Passage type", list(CATEGORY_LABELS), key="passage_type")
+        keep("passage_type")
         cat = CATEGORY_LABELS[label]
         t1, t2 = st.tabs(["In This Surah", "In Whole Quran"])
         with t1:
@@ -790,6 +983,13 @@ def page_drill():
     sid, term = s["surah"], s["drill_term"]
     st.markdown(f'### Word: <span class="ar" style="font-size:2rem">{html.escape(s["drill_label"] or "")}</span>',
                 unsafe_allow_html=True)
+    ru, ur, en = word_meaning(term, sid)
+    if ru:
+        st.success(f"**Roman Urdu meaning:** {ru}")
+    else:
+        extra = " · ".join(x for x in (f"Urdu: {ur}" if ur else "", f"English: {en}" if en else "") if x)
+        st.info("Roman Urdu meaning for this word is not in the dictionary yet."
+                + (f"  \n{extra}" if extra else "  \n(Connect to the internet to also see Urdu / English word meanings.)"))
     partial = st.toggle("Also match with attached prefixes/suffixes (و، ف، ب، ل، ال …)", value=s["drill_partial"],
                         key=f"partial_{st.session_state.idx}")
     names = ("Repeated in this Surah", "Repeated in the Quran") if s["drill_kind"] == "recurring" \
@@ -805,14 +1005,64 @@ def page_drill():
             st.bar_chart(res.groupby("name_en").size().rename("ayahs"))
 
 
+TAJWEED_GUIDE = """
+**Quick tajweed guide** (a reminder — learn with a qualified teacher)
+- **Noon sakinah / tanween:** *Izhar* (clear) before ء ه ع ح غ خ · *Idgham* before ي ر م ل و ن · *Iqlab* before ب · *Ikhfa* before the other 15 letters.
+- **Meem sakinah:** *Ikhfa shafawi* before ب · *Idgham shafawi* before م · otherwise clear.
+- **Qalqalah:** an echo on ق ط ب ج د when they are sakin (remember: قُطْبُ جَدٍّ).
+- **Madd (prolongation):** natural = 2 counts · connected / separate = 4–5 counts · necessary = 6 counts.
+- **Ghunnah:** nasal sound of about 2 counts on a shaddah ن or م.
+- **Lam of "Al":** silent before sun letters (shamsiyya) and pronounced before moon letters (qamariyya).
+- Tip: choose the **Husary — Muallim** reciter in the sidebar for slow, teaching-style recitation.
+"""
+
+
+def page_learn():
+    s = cur()
+    sid = s["surah"]
+    surah_header(sid)
+    df = get_ayahs(sid)
+    if df.empty:
+        return st.info("No ayahs loaded.")
+    ayah = state_select("Ayah", list(df.ayah_number), "learn_ayah")
+    row = df[df.ayah_number == ayah]
+    rows_html(row)
+    name = st.session_state.get("reciter", list(RECITERS)[0])
+    st.markdown(f"**🎧 Listen to the ayah** — {name}")
+    st.audio(AUDIO_AYAH.format(folder=RECITERS[name], sid=sid, ayah=ayah))
+    st.link_button("Open this ayah on Quran.com", f"https://quran.com/{sid}:{ayah}")
+    with st.expander("📚 Tajweed quick guide"):
+        st.markdown(TAJWEED_GUIDE)
+    words = ayah_words(sid, ayah, row.iloc[0].arabic_naskh)
+    st.markdown("#### Tap a word to hear its pronunciation")
+    with st.container(key="wordpills"):
+        pick = st.pills("Words", list(range(len(words))), format_func=lambda i: words[i]["text"],
+                        selection_mode="single", key=f"pill_{sid}_{ayah}", label_visibility="collapsed")
+    if pick is not None:
+        w = words[pick]
+        ru, _, _ = word_meaning(w["text"], sid)
+        st.markdown(f'<div class="ar" style="text-align:center">{html.escape(w["text"])}</div>', unsafe_allow_html=True)
+        if ru:
+            st.success(f"**Roman Urdu meaning:** {ru}")
+        if w["ur"] or w["en"]:
+            st.caption(" · ".join(x for x in (f"Urdu: {w['ur']}" if w["ur"] else "",
+                                              f"English: {w['en']}" if w["en"] else "") if x))
+        elif not ru:
+            st.caption("Meaning not available offline.")
+        st.audio(w["audio"], autoplay=True)
+    if wbw_info(sid, ayah) is None:
+        st.caption("Offline: word audio uses an estimated word order and may be slightly off in a few ayahs.")
+
+
 # ───────────────────────── 7. MAIN ─────────────────────────
 def main():
     st.set_page_config(page_title=f"{APP_NAME_EN} — Quran Read & Analytics", page_icon=str(ICON_PATH) if ICON_PATH.exists() else "📖", layout="wide")
     init_state()
     styles()
     navbar()
+    player_bar()
     {"surahs": page_surahs, "mode": page_mode, "read": page_read,
-     "analytics": page_analytics, "drill": page_drill}[cur()["page"]]()
+     "analytics": page_analytics, "drill": page_drill, "learn": page_learn}[cur()["page"]]()
 
 
 if __name__ == "__main__":
