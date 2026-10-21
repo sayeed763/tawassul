@@ -22,23 +22,8 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
-# Set your custom browser tab title and app icon
-st.set_page_config(
-    page_title="Tawassul — Quran Read & Analytics",
-    page_icon="logo_icon.png",  # Uses your sidebar icon file
-    layout="wide",
-)
-
-# Hide Streamlit header, footer, and menu using CSS
-hide_streamlit_style = """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 APP_NAME_EN = "Tawassul"
 APP_NAME_AR = "تَوَسُّل"
 LOGO_PATH = Path(__file__).resolve().parent / "logo.png"
@@ -646,8 +631,18 @@ CSS = """
 .block-container{padding-bottom:10rem!important;}
 .st-key-navbar,.st-key-playerbar{position:fixed;left:0;right:0;z-index:998;background:#fff;
     border-top:1px solid rgba(128,128,128,.35);box-shadow:0 -2px 10px rgba(0,0,0,.12);}
-.st-key-navbar{bottom:0;padding:.4rem .6rem calc(.4rem + env(safe-area-inset-bottom,0px));}
-.st-key-playerbar{bottom:3.7rem;padding:.3rem .8rem;z-index:997;}
+/* right padding leaves room for the "Hosted with Streamlit" badge that some hosts overlay bottom-right */
+.st-key-navbar{bottom:0;padding:.4rem 5rem calc(.4rem + env(safe-area-inset-bottom,0px)) .6rem;}
+.st-key-playerbar{bottom:3.7rem;padding:.3rem 5rem .3rem .8rem;z-index:997;}
+.st-key-navbar button{padding:.35rem .15rem!important;font-size:.82rem!important;white-space:nowrap;}
+[class*="st-key-card_"]{scroll-margin-top:4.2rem;}
+/* always-visible sidebar toggle (« / ») even while scrolling */
+[data-testid="stSidebarCollapsedControl"],[data-testid="stExpandSidebarButton"],[data-testid="collapsedControl"]{
+    position:fixed!important;top:.55rem;left:.55rem;z-index:1000001;display:flex!important;
+    visibility:visible!important;opacity:1!important;background:#1976d2;border-radius:10px;padding:.1rem;}
+[data-testid="stSidebarCollapsedControl"] *,[data-testid="stExpandSidebarButton"] *,[data-testid="collapsedControl"] *{
+    color:#fff!important;fill:#fff!important;}
+[data-testid="stSidebarCollapseButton"]{opacity:1!important;visibility:visible!important;}
 @media (prefers-color-scheme: dark){.st-key-navbar,.st-key-playerbar{background:#0e1117;}}
 /* keep button rows horizontal on phones (Streamlit stacks columns by default) */
 .st-key-navbar [data-testid="stHorizontalBlock"],[class*="st-key-keepcols"] [data-testid="stHorizontalBlock"]{
@@ -663,12 +658,17 @@ CSS = """
 """
 
 
+JUMP_SLOT = None
+
+
 def styles():
     ss = st.session_state
     options = dict(AR_STYLES)
     custom = custom_font_css()
     if custom:
         options = {"Custom font (fonts folder)": ("'TawassulCustom','Scheherazade New',serif", 400, 2.2), **options}
+    global JUMP_SLOT
+    JUMP_SLOT = st.sidebar.container()   # filled only by the Read page
     st.sidebar.header("⚙️ Display settings")
     for k, d in (("ar_style", list(options)[0]), ("ar_size", 38), ("ur_size", 18), ("reciter", list(RECITERS)[0])):
         persist(k, d)
@@ -791,11 +791,15 @@ def navbar():
         crumbs.append("Learn")
     st.caption(" › ".join(crumbs))
     with st.container(key="navbar"):   # fixed at the bottom of the screen on every page / device
-        c1, c2, c3 = st.columns(3)
-        c1.button("⬅️ Back", disabled=idx == 0, on_click=back, use_container_width=True)
-        c2.button("➡️ Next", disabled=idx >= len(st.session_state.nav) - 1, on_click=forward,
-                  use_container_width=True)
-        c3.button("🏠 Home", on_click=lambda: go(**DEFAULTS), use_container_width=True)
+        show_analyse = s["page"] == "read" and s["mode"] == "analyse"
+        cols = st.columns(4 if show_analyse else 3)
+        cols[0].button("⬅️ Back", disabled=idx == 0, on_click=back, use_container_width=True)
+        cols[1].button("➡️ Next", disabled=idx >= len(st.session_state.nav) - 1, on_click=forward,
+                       use_container_width=True)
+        cols[2].button("🏠 Home", on_click=lambda: go(**DEFAULTS), use_container_width=True)
+        if show_analyse:
+            cols[3].button("🔍 Analyse", key="analyse_bar", type="primary", use_container_width=True,
+                           on_click=lambda: go(page="analytics"))
 
 
 # ───────────────────────── 6. PAGES ─────────────────────────
@@ -845,6 +849,15 @@ def loaded_warning(sid, df):
                    "an internet connection — please reopen the app when online.")
 
 
+def scroll_to_ayah(sid, n):
+    components.html(f"""<script>
+    const sel='.st-key-card_{sid}_{n}'; let tries=0;
+    const t=setInterval(()=>{{const el=window.parent.document.querySelector(sel);
+      if(el){{el.scrollIntoView({{behavior:'smooth',block:'start'}});clearInterval(t);}}
+      else if(++tries>50) clearInterval(t);}},100);
+    </script>""", height=0)
+
+
 def page_read():
     s = cur()
     sid = s["surah"]
@@ -854,6 +867,13 @@ def page_read():
                   on_click=lambda: go(page="analytics"))
     df = get_ayahs(sid)
     loaded_warning(sid, df)
+    if JUMP_SLOT is not None and not df.empty:
+        def _jump():
+            st.session_state.jump_to = st.session_state.get("jump_box")
+            st.session_state.jump_box = None      # reset so the same ayah can be searched again
+        with JUMP_SLOT:
+            st.selectbox("🔎 Go to ayah", list(df.ayah_number), index=None, placeholder="Type ayah number…",
+                         key="jump_box", on_change=_jump)
     # Bismillah rule: shown for every Surah except At-Tawbah (9); in Al-Fatihah it is already Ayah 1.
     if sid not in (1, 9):
         with st.container(border=True, key=f"bsm_{sid}"):
@@ -869,6 +889,9 @@ def page_read():
                 a.button("▶ Listen", key=f"pl_{sid}_{n}", on_click=play_ayah, args=(sid, n), use_container_width=True)
                 b.button("🎓 Learn", key=f"ln_{sid}_{n}", use_container_width=True,
                          on_click=lambda n=n: go(page="learn", learn_ayah=n))
+    target = st.session_state.pop("jump_to", None)
+    if target:
+        scroll_to_ayah(sid, target)
 
 
 def scope_picker(sid):
@@ -1070,6 +1093,25 @@ def page_learn():
         st.caption("Offline: word audio uses an estimated word order and may be slightly off in a few ayahs.")
 
 
+def pwa_head():
+    """Gives the installed app its own name + icon (works when the app is served from its own origin;
+    see pwa_shell/ for hosts that wrap Streamlit in an iframe)."""
+    components.html(f"""<script>
+    const d = window.parent.document;
+    const link = (rel, href) => {{ let l = d.querySelector('link[rel="'+rel+'"]');
+        if (!l) {{ l = d.createElement('link'); l.rel = rel; d.head.appendChild(l); }} l.href = href; }};
+    const meta = (name, content) => {{ let m = d.querySelector('meta[name="'+name+'"]');
+        if (!m) {{ m = d.createElement('meta'); m.name = name; d.head.appendChild(m); }} m.content = content; }};
+    link('manifest', '/app/static/manifest.json');
+    link('apple-touch-icon', '/app/static/icon-192.png');
+    d.querySelectorAll('link[rel*="icon"]').forEach(l => {{ if (l.rel !== 'apple-touch-icon') l.href = '/app/static/icon-192.png'; }});
+    meta('apple-mobile-web-app-capable', 'yes'); meta('mobile-web-app-capable', 'yes');
+    meta('apple-mobile-web-app-title', '{APP_NAME_EN}'); meta('application-name', '{APP_NAME_EN}');
+    meta('theme-color', '#1976d2');
+    d.title = '{APP_NAME_EN} — Quran Read & Analytics';
+    </script>""", height=0)
+
+
 # ───────────────────────── 7. MAIN ─────────────────────────
 def main():
     st.set_page_config(page_title=f"{APP_NAME_EN} — Quran Read & Analytics", page_icon=str(ICON_PATH) if ICON_PATH.exists() else "📖", layout="wide")
@@ -1077,6 +1119,7 @@ def main():
     styles()
     navbar()
     player_bar()
+    pwa_head()
     {"surahs": page_surahs, "mode": page_mode, "read": page_read,
      "analytics": page_analytics, "drill": page_drill, "learn": page_learn}[cur()["page"]]()
 
