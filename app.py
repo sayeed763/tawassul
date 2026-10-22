@@ -21,26 +21,24 @@ import urllib.request
 from pathlib import Path
 
 import pandas as pd
+
 import streamlit as st
-import streamlit.components.v1 as components
+
 st.set_page_config(
     page_title="Tawassul — Quran Read & Analytics",
     page_icon="static/icon-192.png",
     layout="wide",
 )
 
+import streamlit.components.v1 as components
+
 def pwa_head():
-    """
-    Adds metadata to the Streamlit parent document.
-    Change PUBLIC_PREFIX to the real public subpath.
-    """
     components.html(
         """
         <script>
         (() => {
             try {
                 const doc = window.parent.document;
-                const prefix = "/tawassul/";
 
                 function setMeta(name, content) {
                     let el = doc.querySelector(
@@ -53,11 +51,10 @@ def pwa_head():
                     }
                     el.content = content;
                 }
+
                 function setLink(rel, href, sizes) {
                     let selector = 'link[rel="' + rel + '"]';
-                    if (sizes) {
-                        selector += '[sizes="' + sizes + '"]';
-                    }
+                    if (sizes) selector += '[sizes="' + sizes + '"]';
 
                     let el = doc.head.querySelector(selector);
                     if (!el) {
@@ -66,33 +63,23 @@ def pwa_head():
                         if (sizes) el.sizes = sizes;
                         doc.head.appendChild(el);
                     }
-                    el.href = new URL(href, doc.baseURI).href;
+                    el.href = href;
                 }
 
                 setMeta("theme-color", "#176B55");
                 setMeta("apple-mobile-web-app-capable", "yes");
                 setMeta("apple-mobile-web-app-title", "Tawassul");
 
-                setLink(
-                    "manifest",
-                    prefix + "app/static/manifest.json"
-                );
-                setLink(
-                    "icon",
-                    prefix + "app/static/icon-192.png"
-                );
-                setLink(
-                    "icon",
-                    prefix + "app/static/icon-192.png"
-                );
+                setLink("manifest", "/app/static/manifest.json");
+                setLink("icon", "/app/static/icon-192.png");
                 setLink(
                     "apple-touch-icon",
-                    prefix + "app/static/icon-192.png"
+                    "/app/static/icon-192.png"
                 );
 
                 doc.title = "Tawassul — Quran Read & Analytics";
-            } catch (e) {
-                console.error("Tawassul PWA metadata:", e);
+            } catch (error) {
+                console.error("Tawassul PWA setup failed:", error);
             }
         })();
         </script>
@@ -100,8 +87,9 @@ def pwa_head():
         height=0,
     )
 
-# Call once near the beginning of your app.
 pwa_head()
+
+      
 
 # Continue with your existing Quran app below.
 
