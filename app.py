@@ -650,6 +650,10 @@ CSS = """
 %CUSTOM%
 .ar{font-family:%FONT%;font-weight:%WEIGHT%;direction:rtl;text-align:right;font-size:%ARSIZE%px;line-height:%LH%;
     text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;word-spacing:.12em;}
+.aym{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;
+     min-width:1.8em;height:1.8em;padding:0 .2em;margin:0 .4em;border:.09em solid #c9a227;
+     border-radius:50%;font-family:'Amiri','Scheherazade New',serif;font-weight:400;
+     font-size:.5em;line-height:1;color:#c9a227;vertical-align:middle;direction:ltr;}
 .ur{font-size:%URSIZE%px;line-height:1.7;direction:ltr;text-align:left;border-top:1px solid rgba(128,128,128,.25);margin-top:.5rem;padding-top:.55rem;}
 .qwrap{border:1px solid rgba(128,128,128,.3);border-radius:14px;overflow:hidden;}
 .qrow{display:block;padding:.8rem 1rem;border-bottom:1px solid rgba(128,128,128,.2);}
@@ -727,12 +731,18 @@ def styles():
                 .replace("%LH%", str(lh)).replace("%ARSIZE%", str(ar_size)).replace("%URSIZE%", str(ur_size)),
                 unsafe_allow_html=True)
 
+def ar_digits(n):
+    return str(n).translate(str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩"))
 
+
+def ayah_marker(n):
+    return f'<span class="aym">{ar_digits(n)}</span>'
 def card_inner(r, ref):
     ur = html.escape(r.roman_urdu_translation) if r.roman_urdu_translation else "<i>Roman Urdu not loaded</i>"
+    arabic = html.escape(r.arabic_naskh)
+    ar_html = f"{arabic} {ayah_marker(r.ayah_number)}" if arabic else "—"
     return (f'<div class="qrow"><span class="ref">{ref}</span>'
-            f'<div class="ar">{html.escape(r.arabic_naskh) or "—"}</div><div class="ur">{ur}</div></div>')
-
+            f'<div class="ar">{ar_html}</div><div class="ur">{ur}</div></div>')
 
 def rows_html(df, show_ref=False):
     out = ['<div class="qwrap">']
