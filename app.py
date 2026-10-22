@@ -23,16 +23,88 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
-
-# 1. Page Configuration
-BASE_DIR = Path(__file__).resolve().parent
-ICON_PATH = BASE_DIR / "logo_icon.png"
-
 st.set_page_config(
     page_title="Tawassul — Quran Read & Analytics",
-    page_icon=str(ICON_PATH) if ICON_PATH.exists() else "📖",
+    page_icon="static/icon-192.png",
     layout="wide",
 )
+
+def pwa_head():
+    """
+    Adds metadata to the Streamlit parent document.
+    Change PUBLIC_PREFIX to the real public subpath.
+    """
+    components.html(
+        """
+        <script>
+        (() => {
+            try {
+                const doc = window.parent.document;
+                const prefix = "/tawassul/";
+
+                function setMeta(name, content) {
+                    let el = doc.querySelector(
+                        'meta[name="' + name + '"]'
+                    );
+                    if (!el) {
+                        el = doc.createElement("meta");
+                        el.name = name;
+                        doc.head.appendChild(el);
+                    }
+                    el.content = content;
+                }
+                function setLink(rel, href, sizes) {
+                    let selector = 'link[rel="' + rel + '"]';
+                    if (sizes) {
+                        selector += '[sizes="' + sizes + '"]';
+                    }
+
+                    let el = doc.head.querySelector(selector);
+                    if (!el) {
+                        el = doc.createElement("link");
+                        el.rel = rel;
+                        if (sizes) el.sizes = sizes;
+                        doc.head.appendChild(el);
+                    }
+                    el.href = new URL(href, doc.baseURI).href;
+                }
+
+                setMeta("theme-color", "#176B55");
+                setMeta("apple-mobile-web-app-capable", "yes");
+                setMeta("apple-mobile-web-app-title", "Tawassul");
+
+                setLink(
+                    "manifest",
+                    prefix + "app/static/manifest.json"
+                );
+                setLink(
+                    "icon",
+                    prefix + "app/static/icon-192.png"
+                );
+                setLink(
+                    "icon",
+                    prefix + "app/static/icon-192.png"
+                );
+                setLink(
+                    "apple-touch-icon",
+                    prefix + "app/static/icon-192.png"
+                );
+
+                doc.title = "Tawassul — Quran Read & Analytics";
+            } catch (e) {
+                console.error("Tawassul PWA metadata:", e);
+            }
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+# Call once near the beginning of your app.
+pwa_head()
+
+# Continue with your existing Quran app below.
+
 # 2. Convert logo to Base64
 def get_base64_image(image_path):
     path = Path(image_path)
