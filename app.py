@@ -25,10 +25,13 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # 1. Page Configuration
+BASE_DIR = Path(__file__).resolve().parent
+ICON_PATH = BASE_DIR / "logo_icon.png"
+
 st.set_page_config(
-    page_title="Tawassul",
-    page_icon="logo_icon.png",
-    layout="centered"
+    page_title="Tawassul — Quran Read & Analytics",
+    page_icon=str(ICON_PATH) if ICON_PATH.exists() else "📖",
+    layout="wide",
 )
 # 2. Convert logo to Base64
 def get_base64_image(image_path):
