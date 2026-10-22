@@ -1,24 +1,24 @@
 
 {
-  "id": "/tawassul/",
+  "id": "/",
   "name": "Tawassul — Quran Read & Analytics",
   "short_name": "Tawassul",
   "description": "Read the Quran and explore your reading analytics.",
-  "start_url": "/tawassul/",
-  "scope": "/tawassul/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#176B55",
   "icons": [
     {
-      "src": "/tawassul/app/static/icon-192.png",
+      "src": "/app/static/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/tawassul/app/static/icon-512.png",
+      "src": "/app/static/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
