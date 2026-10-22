@@ -30,8 +30,7 @@ st.set_page_config(
     page_icon="logo_icon.png",
     layout="centered"
 )
-
-# 2. Encode icon to Base64 for instant browser recognition
+# 2. Convert logo to Base64
 def get_base64_image(image_path):
     path = Path(image_path)
     if path.is_file():
@@ -41,19 +40,40 @@ def get_base64_image(image_path):
 
 logo_b64 = get_base64_image("logo_icon.png")
 
-# 3. Inject explicit head tags for Mobile PWA & Desktop Shortcuts
+# 3. Create a Dynamic Base64 Web App Manifest
+manifest_json = f"""{{
+  "name": "Tawassul",
+  "short_name": "Tawassul",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1976d2",
+  "icons": [
+    {{
+      "src": "data:image/png;base64,{logo_b64}",
+      "sizes": "192x192",
+      "type": "image/png"
+    }}
+  ]
+}}"""
+
+manifest_b64 = base64.b64encode(manifest_json.encode()).decode()
+# 4. Inject Manifest and Icons so Mobile & Laptop recognize it as a PWA
 if logo_b64:
     st.markdown(
         f"""
-        <link rel="icon" type="image/png" href="data:image/png;base64,{logo_b64}">
-        <link rel="apple-touch-icon" href="data:image/png;base64,{logo_b64}">
-        <meta name="mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-title" content="Tawassul">
+        <head>
+            <link rel="manifest" href="data:application/manifest+json;base64,{manifest_b64}">
+            <link rel="icon" type="image/png" href="data:image/png;base64,{logo_b64}">
+            <link rel="apple-touch-icon" href="data:image/png;base64,{logo_b64}">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-title" content="Tawassul">
+        </head>
         """,
         unsafe_allow_html=True
     )
 
-# 4. App Header Layout
+# 5. App Header Layout
 col1, col2 = st.columns([1, 4])
 with col1:
     st.image("logo_icon.png", width=80)
@@ -62,7 +82,6 @@ with col2:
     st.caption("Read · Reflect · Analyse the Quran")
 
 st.divider()
-
 # Rest of your app code goes here...
 
 APP_NAME_EN = "Tawassul"
